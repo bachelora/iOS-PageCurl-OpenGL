@@ -8,6 +8,8 @@
 
 #import <UIKit/UIKit.h>
 
+
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface OpenGLView : UIView
@@ -20,14 +22,18 @@ NS_ASSUME_NONNULL_BEGIN
     
     GLuint _m,_n;
     GLuint _textureFront,_textureBack;
-    CADisplayLink *_displayLink;
+
 }
+
+@property(nonatomic,strong)NSArray <NSValue*>*pFrames;
+
+@property(nonatomic,assign)BOOL frontFacing;
+
 @property(nonatomic,strong)UIImage *front;
 @property(nonatomic,strong)UIImage *back;
-@property(nonatomic,assign)CGRect certerFrame;
+@property(nonatomic,assign)CGRect centerFrame;
 
--(void)startTimer;
--(void)endTimer;
+
 - (void)render;
 
 @property(nonatomic,assign)CGFloat radius;

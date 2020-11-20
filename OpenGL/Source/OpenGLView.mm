@@ -16,6 +16,10 @@
 @interface OpenGLView ()
 {
     GLuint _programId;
+    glm::vec4 _glViewPortParameter;//giViewPort x,y,width,height
+    glm::mat4 _ortho;
+    
+    NSArray <UIImageView*>*_moveViews;
 }
 @end
 
@@ -48,14 +52,6 @@
     if (self = [super init]) {
         [self setup];
     }
-    return self;
-}
-
-- (instancetype)initWithCoder:(NSCoder *)aDecoder {
-    if ((self = [super initWithCoder:aDecoder])){
-        [self setup];
-    }
-    
     return self;
 }
 
@@ -101,6 +97,7 @@
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &width);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &height);
     
+    _glViewPortParameter = glm::vec4(0,0,width,height);
     glViewport(0, 0, width, height);
     
     GLuint _depthRenderBuffer;
@@ -140,9 +137,9 @@
    
     _programId = [self createProgramWithVertexShader:@"VertexShader.glsl" fragmentShader:@"FragmentShader.glsl"];
 
-    _m = self.certerFrame.size.width/10;
-    _n = self.certerFrame.size.height/10;
-    CGSize size = self.certerFrame.size;
+    _m = self.centerFrame.size.width/10;
+    _n = self.centerFrame.size.height/10;
+    CGSize size = self.centerFrame.size;
     GLfloat x = -size.width/2;
     GLfloat y = -size.height/2;
     GLfloat vertices[] = {
@@ -164,6 +161,22 @@
     glActiveTexture(GL_TEXTURE0);
     _textureFront = [self generateTexture];
     [self copyTo:_textureFront fromImage:self.front];
+    
+    ///设置Uniform，由于数据不会动态变化，所以传递一次就好了，节省GPU带宽
+    glUseProgram(_programId);
+    glUniform1i(glGetUniformLocation(_programId, "s_front"),0);
+    glUniform1i(glGetUniformLocation(_programId, "s_back"),1);
+       
+    int u_mn = glGetUniformLocation(_programId, "u_mn");
+    size = self.centerFrame.size;
+    glUniform4f(u_mn,_m,_n,size.width,size.height);
+       
+     x = self.frame.size.width/2;
+     y = self.frame.size.height/2;
+       
+    _ortho = glm::ortho(-x,x,-y,y, (GLfloat)-100.f, (GLfloat)100.0f);
+    int u_mvpMatrix = glGetUniformLocation(_programId, "u_mvpMatrix");
+    glUniformMatrix4fv(u_mvpMatrix, 1,GL_FALSE, glm::value_ptr(_ortho));
 }
 
 - (void)copyTo:(GLuint)textureId fromImage:(UIImage*)image
@@ -249,59 +262,6 @@
     return prog;
 }
 
-/*
-#pragma mark - Private
-- (BOOL)checkFramebuffer:(NSError *__autoreleasing *)error {
-    // 检查 framebuffer 是否创建成功
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    NSString *errorMessage = nil;
-    BOOL result = NO;
-    
-    switch (status)
-    {
-        case GL_FRAMEBUFFER_UNSUPPORTED:
-            errorMessage = @"framebuffer不支持该格式";
-            result = NO;
-            break;
-        case GL_FRAMEBUFFER_COMPLETE:
-           // NSLog(@"framebuffer 创建成功");
-            result = YES;
-            break;
-        case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-            errorMessage = @"Framebuffer不完整 缺失组件";
-            result = NO;
-            break;
-        case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
-            errorMessage = @"Framebuffer 不完整, 附加图片必须要指定大小";
-            result = NO;
-            break;
-        default:
-            // 一般是超出GL纹理的最大限制
-            errorMessage = @"未知错误 error !!!!";
-            result = NO;
-            break;
-    }
-    
-    NSLog(@"%@",errorMessage ? errorMessage : @"");
-    *error = errorMessage ? [NSError errorWithDomain:@"com.colin.error"
-                                                code:status
-                                            userInfo:@{@"ErrorMessage" : errorMessage}] : nil;
-    
-    return result;
-}*/
-
--(void)startTimer{
-    [self endTimer];
-    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(render)];
-    [_displayLink addToRunLoop:NSRunLoop.currentRunLoop forMode:NSRunLoopCommonModes];
-}
-
--(void)endTimer{
-    if (_displayLink) {
-       // [_displayLink invalidate];
-       // _displayLink = nil;
-    }
-}
 
 - (void)render {
   
@@ -314,41 +274,25 @@
     }
     glClearColor(color[0], color[1], color[2], color[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    
-    glUseProgram(_programId);
-    glUniform1i(glGetUniformLocation(_programId, "s_front"),0);
-    glUniform1i(glGetUniformLocation(_programId, "s_back"),1);
-    
-    
-    int u_mn = glGetUniformLocation(_programId, "u_mn");
-    CGSize size = self.certerFrame.size;
-    glUniform4f(u_mn,_m,_n,size.width,size.height);
-    
-    CGFloat x = self.frame.size.width/2;
-    CGFloat y = self.frame.size.height/2;
-    glm::mat4 ortho =  glm::ortho(-x,x,-y,y, (CGFloat)-100.f, (CGFloat)100.0f);
-    
    
-    int u_mvpMatrix = glGetUniformLocation(_programId, "u_mvpMatrix");
-    glUniformMatrix4fv(u_mvpMatrix, 1,GL_FALSE, glm::value_ptr(ortho));
+    glUseProgram(_programId);
     
-    int directionId = glGetUniformLocation(_programId, "direction");
     glm::vec2 dir(self.direction.x,self.direction.y);
-    
-    
     glm::vec2 normalDir = glm::normalize(dir);
-    glUniform3f(directionId, normalDir.x, normalDir.y, self.radius);
+    
+    glm::vec3 finalDir = glm::vec3(normalDir, self.radius);
+    int directionId = glGetUniformLocation(_programId, "direction");
+    glUniform3f(directionId, finalDir.x, finalDir.y, finalDir.z);
     
     CGFloat _xx = dir.x >= 0 ? -1  : 1;
     CGFloat _yy = dir.y >= 0 ? -1  : 1;
-    glm::vec2 startP = glm::vec2(_xx *self.certerFrame.size.width/2, _yy*self.certerFrame.size.height/2);
+    glm::vec2 startP = glm::vec2(_xx *self.centerFrame.size.width/2, _yy*self.centerFrame.size.height/2);
+
     
+    startP += 0.75f * dir ;
+    glUniform2f(glGetUniformLocation(_programId, "point"),startP.x,startP.y);
     
-    startP += 0.7f * dir ;
-    int pointId = glGetUniformLocation(_programId, "point");
-    glUniform2f(pointId,startP.x,startP.y);
-    
+    glUniform1i(glGetUniformLocation(_programId, "frontFacing"),self.frontFacing);
     
     glBindBuffer(GL_ARRAY_BUFFER,_vbo);
     glEnableVertexAttribArray(0);
@@ -360,8 +304,87 @@
     
     // 做完所有绘制操作后，最终呈现到屏幕上
     [_context presentRenderbuffer:GL_RENDERBUFFER];
+
+    
+    CGFloat angle = atan(normalDir.x/normalDir.y);
+    if (normalDir.y >= 0) {
+        angle += M_PI;
+    }
+    [self.pFrames enumerateObjectsUsingBlock:^(NSValue * _Nonnull pF, NSUInteger index, BOOL * _Nonnull stop) {
+        CGRect p = pF.CGRectValue;
+        CGPoint points[] = {
+                          p.origin,//topLeft
+                          CGPointMake(p.origin.x + p.size.width, p.origin.y),//topRight
+                          CGPointMake(p.origin.x, p.origin.y+p.size.height),//bottomLeft
+                          CGPointMake(p.origin.x + p.size.width, p.origin.y+p.size.height),//bottomRight
+                          CGPointMake(p.origin.x + p.size.width/2, p.origin.y+p.size.height/2),///center
+                         };
+                      
+                      
+        CGPoint outPoint = CGPointZero;
+        NSInteger size = sizeof(points)/sizeof(CGPoint);
+        BOOL should = NO;
+                     
+        for (NSInteger i = 0; i< size-1 && !should; i++) {///0...3
+            should =  [self curlPoint:points[i] Point:startP Direction:finalDir OutInput:outPoint];
+        }
+        UIImageView *image = _moveViews[index];
+        image.hidden = !should;
+        
+        if (should) {
+            [self curlPoint:points[size-1] Point:startP Direction:finalDir OutInput:outPoint];
+            image.center = CGPointMake(outPoint.x+8,outPoint.y+p.size.height/2);
+            image.transform = CGAffineTransformMakeRotation(angle);
+        }
+    }];
+    
 }
 
+
+///调用顶点着色器 代码，计算屏幕上的点，卷曲后的顶点坐标(注意screenCoordinate是父View的坐标系,outPoint是当前坐标系)
+-(BOOL)curlPoint:(const CGPoint&)screenCoordinate Point:(const glm::vec2&)point Direction:(const glm::vec3&)direction OutInput:(CGPoint&)outPoint{
+    glm::vec2 worldPoint = glm::vec2(screenCoordinate.x-self.centerFrame.size.width/2,-screenCoordinate.y+self.centerFrame.size.height/2);///将iOS屏幕坐标转换成 OpenGL中的世界坐标
+
+    glm::vec3 pos = glm::vec3(worldPoint.x,worldPoint.y,0);//转换成3维，当前点的三维世界坐标
+    glm::vec2 direction_xy = glm::vec2(direction.x,direction.y);
+    
+    float distance = glm::dot(point-worldPoint,direction_xy);
+    BOOL ret = distance > 0.f;
+    if(ret){
+         glm::vec2 bottom = worldPoint + distance * direction_xy;
+         float moreThanHalfCir = (distance -  M_PI * direction.z);
+    
+          if(moreThanHalfCir >= 0.f){//exceed
+            glm::vec3 topPoint = glm::vec3(bottom, float(2) * direction.z);
+            pos = topPoint + moreThanHalfCir * glm::vec3(direction_xy,0);
+          }else{
+    
+            float angle = M_PI - distance / direction.z;
+            float h = distance - sin(angle)*direction.z;
+            float z = direction.z + cos(angle)*direction.z;
+            glm::vec3 vD = pos + h * glm::vec3(direction_xy,0);
+            pos = glm::vec3(vD.x,vD.y,z);
+          }
+    }
+    
+
+    glm::vec4 gl_Position = _ortho * glm::vec4(pos,1);///在顶点着色器中返回的结果
+
+    outPoint = [self transformToScreenCoordinate:gl_Position];//OpenGL内部自动执行的操作
+    
+    return ret;
+}
+
+
+-(CGPoint)transformToScreenCoordinate:(const glm::vec4&)gl_Position{
+    glm::vec3 clip = glm::vec3(gl_Position.x/gl_Position.w,gl_Position.y/gl_Position.w,gl_Position.z/gl_Position.w);//裁剪
+    
+    CGFloat x = (clip.x + 1)*(_glViewPortParameter.z/2) + _glViewPortParameter.x;
+    CGFloat y = (clip.y + 1)*(_glViewPortParameter.w/2) + _glViewPortParameter.y;
+    y = _glViewPortParameter.w - y;//Y轴方向 与 卡迪尔坐标系方向相反
+    
+   return CGPointMake(x,y);
+}
 
 - (GLuint)generateTexture
 {
@@ -377,4 +400,24 @@
     
     return tex;
 }
+
+-(void)setPFrames:(NSArray<NSValue *> *)pFrames{
+    _pFrames = pFrames;
+    for (UIImageView*s in _moveViews) {
+        [s removeFromSuperview];
+    }
+    NSMutableArray *m = [NSMutableArray arrayWithCapacity:pFrames.count];
+    _moveViews = m;
+    for (NSValue*value in pFrames) {
+        CGRect frame = value.CGRectValue;
+        UIImageView *image = [UIImageView.alloc initWithFrame:{frame.origin,60,60}];
+        image.backgroundColor = UIColor.clearColor;
+        UIImage *ig = [UIImage imageNamed:@"right_finger"];
+        image.image = ig;
+        image.hidden = YES;
+        [self addSubview:image];
+        [m addObject:image];
+    }
+}
+
 @end

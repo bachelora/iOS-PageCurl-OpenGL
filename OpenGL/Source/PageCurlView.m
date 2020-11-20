@@ -9,6 +9,8 @@
 #import "PageCurlView.h"
 #import "OpenGLView.h"
 
+#define kRadiusDefault    (10)
+
 typedef NS_ENUM(NSInteger,Region) {
     RegionTopLeft = 0b0101,
     RegionTopCenter = 0b1001,
@@ -22,11 +24,6 @@ typedef NS_ENUM(NSInteger,Region) {
 };
 
 
-typedef NS_ENUM(NSInteger,TouchState) {
-    TouchStateBegin,
-    TouchStateMove,
-    TouchStateEnd
-};
 
 @interface PageCurlView()
 {
@@ -34,34 +31,50 @@ typedef NS_ENUM(NSInteger,TouchState) {
     OpenGLView *gkView;
     Region _region;
     CGPoint _startPoint;
-    TouchState _touchState;
 }
 @end
 
 @implementation PageCurlView
 
--(instancetype)initWithFrame:(CGRect)frame{
+-(instancetype)initWithFrontImage:(UIImage*)front backImage:(UIImage*)back frame:(CGRect)frame{
     if (self = [super initWithFrame:frame]) {
         self.userInteractionEnabled = YES;
         CGFloat topInset = frame.size.height/3;
         CGFloat leftInset = frame.size.width/2;
         gkView = [OpenGLView alloc];
-        gkView.front = [UIImage imageNamed:@"back.png"];
-        gkView.back = [UIImage imageNamed:@"fornt.png"];
-        gkView.certerFrame = CGRectMake(leftInset, topInset,frame.size.width, frame.size.height);
+        gkView.front = back;
+        gkView.back = front;
+        gkView.frontFacing = NO;
+        gkView.centerFrame = CGRectMake(leftInset, topInset,frame.size.width, frame.size.height);
         gkView = [gkView initWithFrame:CGRectMake(-leftInset, -topInset, frame.size.width+2*leftInset, frame.size.height+2*topInset)];
-        
+
         gkView.backgroundColor = [UIColor clearColor];
+        self.radius = kRadiusDefault;
         [self addSubview:gkView];
+        
+        CGFloat x=5,y=10,w=20,h=30;
+        gkView.pFrames = @[[NSValue valueWithCGRect:CGRectMake(x,y,w,h)],
+                           [NSValue valueWithCGRect:CGRectMake(frame.size.width-x-w, frame.size.height-y-h, w,h)],
+                           [NSValue valueWithCGRect:CGRectMake(x, frame.size.height-y-h, w,h)],
+                           [NSValue valueWithCGRect:CGRectMake(frame.size.width-x-w, y, w,h)],
+                          ];
     }
     return self;
 }
 
-
+-(void)reset{
+    gkView.frontFacing = NO;
+    self.userInteractionEnabled = YES;
+    [self curlToDirection:CGPointZero];
+}
 
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesBegan:touches withEvent:event];
-    _touchState = TouchStateBegin;
+    
+    if ([self.delegate respondsToSelector:@selector(pageCurlViewBeginDragging:)]) {
+        [self.delegate pageCurlViewBeginDragging:self];
+    }
+    
     _startPoint  = [touches.anyObject locationInView:self];
     _region = [self regionFromPoint:_startPoint];
    
@@ -94,19 +107,19 @@ typedef NS_ENUM(NSInteger,TouchState) {
         default:
             return;
     }
-//gkView.isDraging = YES;
-//[gkView startTimer];
-    
-
     NSLog(@"===touchesBegan=%@===",NSStringFromCGPoint(_startPoint));
 }
 
 
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesMoved:touches withEvent:event];
+    
+    if (!self.userInteractionEnabled) {
+        return;
+    }
+    
     CGPoint location  = [touches.anyObject locationInView:self];
 
-    //NSLog(@"touchesMoved===%@",NSStringFromCGPoint(location));
     switch (_region) {
         case RegionTopCenter:case RegionBottomCenter:
             location.x = _startPoint.x;
@@ -120,32 +133,49 @@ typedef NS_ENUM(NSInteger,TouchState) {
             break;
     }
     
-    gkView.radius = 10;
-    gkView.direction = CGPointMake(location.x-_startPoint.x, -location.y+_startPoint.y);
+    CGPoint dir = CGPointMake(location.x-_startPoint.x, -location.y+_startPoint.y);
+    if (fabs(dir.x) >= self.bounds.size.width*0.75 || fabs(dir.y) >= self.bounds.size.height*0.75) {//成功翻牌
+        dir = CGPointZero;
+        gkView.frontFacing = YES;
+        if ([self.delegate respondsToSelector:@selector(pageCurlViewEndDragging:success:)] && self.userInteractionEnabled) {
+            [self.delegate pageCurlViewEndDragging:self success:YES];
+        }
+        self.userInteractionEnabled = NO;//禁止再次操作
+    }
     
+    [self curlToDirection:dir];
     
+    if ([self.delegate respondsToSelector:@selector(pageCurlViewDidDragging:direction:)] && self.userInteractionEnabled) {
+        [self.delegate pageCurlViewDidDragging:self direction:gkView.direction];
+    }
+}
+
+-(void)curlToDirection:(CGPoint)direction{
+    gkView.radius = self.radius;
+    gkView.direction = direction;
     [gkView render];
-    
-     _touchState = TouchStateMove;
 }
 
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesEnded:touches withEvent:event];
     NSLog(@"==touchesEnded");
-    [gkView endTimer];
-//    gkView.isDraging = NO;
-//    if (_touchState == TouchStateBegin || _region == RegionCenter) {
-//        _touchState = TouchStateEnd;
-//        return;
-//    }
-//    _touchState = TouchStateEnd;
-//    [self uncurlPageAnimated:YES completion:^{
-//    }];
+    [self curlBack];
+}
+
+-(void)curlBack{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self curlToDirection:CGPointZero];
+        
+        if ([self.delegate respondsToSelector:@selector(pageCurlViewEndDragging:success:)] && self.userInteractionEnabled) {
+            [self.delegate pageCurlViewEndDragging:self success:NO];
+        }
+    });
 }
 
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesCancelled:touches withEvent:event];
     NSLog(@"==touchesCancelled");
+    [self curlBack];
 }
 
 -(Region)regionFromPoint:(CGPoint) point{

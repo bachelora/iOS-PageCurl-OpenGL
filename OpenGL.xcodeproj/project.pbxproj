@@ -22,6 +22,7 @@
 		EC4E4D4924D831BA00AFF346 /* fornt.png in Resources */ = {isa = PBXBuildFile; fileRef = EC4E4D4824D831BA00AFF346 /* fornt.png */; };
 		EC4E4D4D24D845E000AFF346 /* FragmentShader.glsl in Resources */ = {isa = PBXBuildFile; fileRef = EC4E4D4B24D845DF00AFF346 /* FragmentShader.glsl */; };
 		EC4E4D4E24D845E000AFF346 /* VertexShader.glsl in Resources */ = {isa = PBXBuildFile; fileRef = EC4E4D4C24D845DF00AFF346 /* VertexShader.glsl */; };
+		ECB6AFAF25615D8D00243F0C /* right_finger@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = ECB6AFAE25615D8D00243F0C /* right_finger@2x.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +69,7 @@
 		EC4E4D4824D831BA00AFF346 /* fornt.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = fornt.png; sourceTree = "<group>"; };
 		EC4E4D4B24D845DF00AFF346 /* FragmentShader.glsl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = FragmentShader.glsl; sourceTree = "<group>"; };
 		EC4E4D4C24D845DF00AFF346 /* VertexShader.glsl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = VertexShader.glsl; sourceTree = "<group>"; };
+		ECB6AFAE25615D8D00243F0C /* right_finger@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "right_finger@2x.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +128,7 @@
 				EC4E4D1024D81E4B00AFF346 /* ViewController.h */,
 				EC4E4D4624D8319D00AFF346 /* back.png */,
 				EC4E4D4824D831BA00AFF346 /* fornt.png */,
+				ECB6AFAE25615D8D00243F0C /* right_finger@2x.png */,
 				EC4E4D1124D81E4C00AFF346 /* ViewController.m */,
 				EC4E4D1324D81E4C00AFF346 /* Main.storyboard */,
 				EC4E4D1624D81E4D00AFF346 /* Assets.xcassets */,
@@ -278,6 +281,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ECB6AFAF25615D8D00243F0C /* right_finger@2x.png in Resources */,
 				EC4E4D4D24D845E000AFF346 /* FragmentShader.glsl in Resources */,
 				EC4E4D4724D8319D00AFF346 /* back.png in Resources */,
 				EC4E4D1A24D81E4D00AFF346 /* LaunchScreen.storyboard in Resources */,
